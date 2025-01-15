@@ -93,7 +93,7 @@ def initialize_exchange():
         logger.error(f"Exchange initialization failed: {str(e)}")
         return None
 
-def fetch_and_analyze_data(exchange, symbol="BTC/USD", timeframe='15m'):
+def fetch_and_analyze_data(exchange, symbol="BTC/USD", timeframe='1m'):
     """Fetch and analyze market data"""
     try:
         # Kraken-specific symbol adjustment
@@ -167,7 +167,7 @@ def send_to_n8n(signal_data, symbol):
             
         params = {
             "symbol": symbol,
-            "timeframe": "15m",
+            "timeframe": "1m",  # Updated timeframe
             "signal": signal_data['signal'],
             "reason": signal_data['reason'],
             "price": str(signal_data['indicators']['price']),
@@ -179,6 +179,7 @@ def send_to_n8n(signal_data, symbol):
         if response.status_code == 200:
             logger.info(f"Signal sent successfully: {params['signal']} for {symbol}")
             logger.info(f"Current price: {params['price']}, RSI: {params['rsi']}")
+            logger.info(f"Reason: {params['reason']}")  # Added reason to logging
         else:
             logger.error(f"Error sending signal: {response.status_code}")
             logger.error(f"Response: {response.text}")
@@ -201,7 +202,7 @@ def main():
 
     # Only analyze BTC/USD
     symbol = "BTC/USD"  # Will be converted to XBT/ZUSD for Kraken
-    timeframe = "15m"
+    timeframe = "1m"  # Changed to 1 minute timeframe
     
     try:
         while True:
@@ -220,13 +221,13 @@ def main():
                         logger.info(f"No trading signal generated for {symbol}")
                         logger.info(f"Current RSI: {analysis['rsi']:.2f}, Price: {analysis['price']}")
                 
-                # Wait 15 minutes before next check
-                logger.info(f"Waiting 15 minutes for next {symbol} analysis...")
-                time.sleep(900)  # 15 minutes
+                # Wait 1 minute before next check
+                logger.info(f"Waiting 1 minute for next {symbol} analysis...")
+                time.sleep(60)  # 1 minute
                 
             except Exception as e:
                 logger.error(f"Error in main loop: {str(e)}")
-                time.sleep(60)  # Wait 1 minute before retrying
+                time.sleep(10)  # Wait 10 seconds before retrying if there's an error
             
     except KeyboardInterrupt:
         logger.info("Script stopped by user")
