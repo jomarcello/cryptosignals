@@ -87,29 +87,29 @@ def initialize_exchange():
         exchange_class = getattr(ccxt, EXCHANGE_ID)
         exchange = exchange_class(EXCHANGE_CONFIG)
         exchange.load_markets()
-        logger.info(f"Verbonden met {EXCHANGE_ID}")
+        logger.info(f"Connected to {EXCHANGE_ID}")
         return exchange
     except Exception as e:
-        logger.error(f"Exchange initialisatie mislukt: {str(e)}")
+        logger.error(f"Exchange initialization failed: {str(e)}")
         return None
 
 def fetch_and_analyze_data(exchange, symbol="XBT/USD", timeframe='15m'):
     """Fetch and analyze market data"""
     try:
-        # Kraken-specifieke symbool aanpassing
+        # Kraken-specific symbol adjustment
         if symbol == "BTC/USD":
-            symbol = "XBT/USD"  # Kraken gebruikt XBT voor Bitcoin
+            symbol = "XBT/USD"  # Kraken uses XBT for Bitcoin
         
-        # Data ophalen
+        # Fetch data
         ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=50)
         if not ohlcv or len(ohlcv) < 50:
-            logger.error(f"Geen data ontvangen voor {symbol}")
+            logger.error(f"No data received for {symbol}")
             return None
 
-        # Convert naar numpy arrays
+        # Convert to numpy arrays
         close_prices = np.array([candle[4] for candle in ohlcv])
         
-        # Technische indicatoren berekenen
+        # Calculate technical indicators
         rsi = calculate_rsi(close_prices)
         macd, macd_signal = calculate_macd(close_prices)
         
@@ -121,7 +121,7 @@ def fetch_and_analyze_data(exchange, symbol="XBT/USD", timeframe='15m'):
             'timestamp': ohlcv[-1][0]
         }
     except Exception as e:
-        logger.error(f"Error bij data analyse: {str(e)}")
+        logger.error(f"Error in data analysis: {str(e)}")
         return None
 
 def generate_signal(analysis):
@@ -132,7 +132,7 @@ def generate_signal(analysis):
     signal = None
     reason = []
     
-    # RSI Signalen
+    # RSI Signals
     if analysis['rsi'] > 70:
         signal = "SELL"
         reason.append(f"RSI overbought ({analysis['rsi']:.2f})")
@@ -140,13 +140,13 @@ def generate_signal(analysis):
         signal = "BUY"
         reason.append(f"RSI oversold ({analysis['rsi']:.2f})")
         
-    # MACD Signalen
+    # MACD Signals
     if analysis['macd'] > analysis['macd_signal']:
-        if signal != "SELL":  # Alleen als RSI niet SELL zegt
+        if signal != "SELL":  # Only if RSI doesn't say SELL
             signal = "BUY"
             reason.append("MACD bullish crossover")
     elif analysis['macd'] < analysis['macd_signal']:
-        if signal != "BUY":  # Alleen als RSI niet BUY zegt
+        if signal != "BUY":  # Only if RSI doesn't say BUY
             signal = "SELL"
             reason.append("MACD bearish crossover")
             
@@ -177,13 +177,14 @@ def send_to_n8n(signal_data, symbol):
         
         response = requests.get(WEBHOOK_URL, params=params)
         if response.status_code == 200:
-            logger.info(f"Signaal succesvol verzonden: {params['signal']} voor {symbol}")
+            logger.info(f"Signal sent successfully: {params['signal']} for {symbol}")
+            logger.info(f"Current price: {params['price']}, RSI: {params['rsi']}")
         else:
-            logger.error(f"Fout bij verzenden signaal: {response.status_code}")
+            logger.error(f"Error sending signal: {response.status_code}")
             logger.error(f"Response: {response.text}")
             
     except Exception as e:
-        logger.error(f"Error bij verzenden naar n8n: {str(e)}")
+        logger.error(f"Error sending to n8n: {str(e)}")
 
 def main():
     """Main function to run the signal generator"""
@@ -198,51 +199,39 @@ def main():
     if not exchange:
         return
 
-    # Kraken ondersteunde pairs
-    symbols = [
-        "BTC/USD",    # Wordt automatisch omgezet naar XBT/USD
-        "ETH/USD", 
-        "XRP/USD",
-        "SOL/USD",
-        "DOT/USD"     # Vervanging voor BNB/USD
-    ]
-    
-    retry_count = 0
-    max_retries = 3
+    # Only analyze BTC/USD
+    symbol = "BTC/USD"  # Will be converted to XBT/USD for Kraken
+    timeframe = "15m"
     
     try:
         while True:
             try:
-                for symbol in symbols:
-                    logger.info(f"Analyzing {symbol}...")
-                    
-                    # Data analyseren
-                    analysis = fetch_and_analyze_data(exchange, symbol)
-                    if analysis:
-                        # Signaal genereren
-                        signal = generate_signal(analysis)
-                        if signal:
-                            # Signaal verzenden naar n8n
-                            send_to_n8n(signal, symbol)
-                    
-                # Reset retry count on successful iteration
-                retry_count = 0
+                logger.info(f"Analyzing {symbol} on {timeframe} timeframe...")
                 
-                # Wacht 15 minuten voor volgende check
-                logger.info("Wachten op volgende analyse ronde...")
-                time.sleep(900)  # 15 minuten
+                # Analyze data
+                analysis = fetch_and_analyze_data(exchange, symbol, timeframe)
+                if analysis:
+                    # Generate signal
+                    signal = generate_signal(analysis)
+                    if signal:
+                        # Send signal to n8n
+                        send_to_n8n(signal, symbol)
+                    else:
+                        logger.info(f"No trading signal generated for {symbol}")
+                        logger.info(f"Current RSI: {analysis['rsi']:.2f}, Price: {analysis['price']}")
+                
+                # Wait 15 minutes before next check
+                logger.info(f"Waiting 15 minutes for next {symbol} analysis...")
+                time.sleep(900)  # 15 minutes
                 
             except Exception as e:
-                retry_count += 1
-                logger.error(f"Error in main loop (attempt {retry_count}/{max_retries}): {str(e)}")
-                if retry_count >= max_retries:
-                    raise Exception(f"Maximum retry attempts ({max_retries}) reached")
+                logger.error(f"Error in main loop: {str(e)}")
                 time.sleep(60)  # Wait 1 minute before retrying
             
     except KeyboardInterrupt:
-        logger.info("Script gestopt door gebruiker")
+        logger.info("Script stopped by user")
     except Exception as e:
-        logger.error(f"Onverwachte error: {str(e)}")
+        logger.error(f"Unexpected error: {str(e)}")
 
 if __name__ == "__main__":
     main()
