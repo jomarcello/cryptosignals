@@ -87,6 +87,13 @@ def initialize_exchange():
         exchange_class = getattr(ccxt, EXCHANGE_ID)
         exchange = exchange_class(EXCHANGE_CONFIG)
         exchange.load_markets()
+        
+        # Log available markets for BTC/USD
+        btc_markets = [symbol for symbol in exchange.markets.keys() if 'BTC' in symbol or 'XBT' in symbol]
+        logger.info("Available BTC markets on Kraken:")
+        for market in btc_markets:
+            logger.info(f"- {market}")
+        
         logger.info(f"Connected to {EXCHANGE_ID}")
         return exchange
     except Exception as e:
@@ -98,7 +105,7 @@ def fetch_and_analyze_data(exchange, symbol="BTC/USD", timeframe='1m'):
     try:
         # Kraken-specific symbol adjustment
         if symbol == "BTC/USD":
-            symbol = "XBT/USD"  # Changed from XBT/ZUSD to XBT/USD
+            symbol = "BTC/USD"  # We'll see the correct symbol in the logs
         
         # Fetch data
         ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=50)
@@ -201,7 +208,7 @@ def main():
         return
 
     # Only analyze BTC/USD
-    symbol = "BTC/USD"  # Will be converted to XBT/USD for Kraken
+    symbol = "BTC/USD"  # We'll see the correct symbol in the logs
     timeframe = "1m"  # Changed to 1 minute timeframe
     
     try:
