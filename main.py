@@ -176,7 +176,7 @@ def send_to_n8n(signal_data, symbol):
             
         # Prepare signal data as query parameters
         params = {
-            "symbol": symbol,
+            "instrument": symbol,
             "timeframe": "1m",
             "signal": signal_data['signal'],
             "reason": signal_data['reason'],
