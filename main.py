@@ -93,12 +93,12 @@ def initialize_exchange():
         logger.error(f"Exchange initialization failed: {str(e)}")
         return None
 
-def fetch_and_analyze_data(exchange, symbol="XBT/USD", timeframe='15m'):
+def fetch_and_analyze_data(exchange, symbol="BTC/USD", timeframe='15m'):
     """Fetch and analyze market data"""
     try:
         # Kraken-specific symbol adjustment
         if symbol == "BTC/USD":
-            symbol = "XBT/USD"  # Kraken uses XBT for Bitcoin
+            symbol = "XBT/ZUSD"  # Kraken uses XBT/ZUSD for Bitcoin/USD pair
         
         # Fetch data
         ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=50)
@@ -200,7 +200,7 @@ def main():
         return
 
     # Only analyze BTC/USD
-    symbol = "BTC/USD"  # Will be converted to XBT/USD for Kraken
+    symbol = "BTC/USD"  # Will be converted to XBT/ZUSD for Kraken
     timeframe = "15m"
     
     try:
