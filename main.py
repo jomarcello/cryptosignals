@@ -98,7 +98,7 @@ def fetch_and_analyze_data(exchange, symbol="BTC/USD", timeframe='1m'):
     try:
         # Kraken-specific symbol adjustment
         if symbol == "BTC/USD":
-            symbol = "XBT/ZUSD"  # Kraken uses XBT/ZUSD for Bitcoin/USD pair
+            symbol = "XBT/USD"  # Changed from XBT/ZUSD to XBT/USD
         
         # Fetch data
         ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=50)
@@ -201,7 +201,7 @@ def main():
         return
 
     # Only analyze BTC/USD
-    symbol = "BTC/USD"  # Will be converted to XBT/ZUSD for Kraken
+    symbol = "BTC/USD"  # Will be converted to XBT/USD for Kraken
     timeframe = "1m"  # Changed to 1 minute timeframe
     
     try:
