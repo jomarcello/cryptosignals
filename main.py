@@ -30,6 +30,8 @@ EXCHANGE_CONFIG = {
 
 # N8N Webhook configuratie
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+if WEBHOOK_URL and not WEBHOOK_URL.startswith(('http://', 'https://')):
+    WEBHOOK_URL = 'https://' + WEBHOOK_URL
 
 def calculate_rsi(prices, period=14):
     """Calculate RSI technical indicator"""
@@ -172,9 +174,10 @@ def send_to_n8n(signal_data, symbol):
         if not WEBHOOK_URL:
             raise ValueError("Webhook URL not found in environment variables")
             
-        params = {
+        # Prepare signal data
+        payload = {
             "symbol": symbol,
-            "timeframe": "1m",  # Updated timeframe
+            "timeframe": "1m",
             "signal": signal_data['signal'],
             "reason": signal_data['reason'],
             "price": str(signal_data['indicators']['price']),
@@ -182,14 +185,13 @@ def send_to_n8n(signal_data, symbol):
             "timestamp": datetime.fromtimestamp(signal_data['indicators']['timestamp']/1000).isoformat()
         }
         
-        response = requests.get(WEBHOOK_URL, params=params)
-        if response.status_code == 200:
-            logger.info(f"Signal sent successfully: {params['signal']} for {symbol}")
-            logger.info(f"Current price: {params['price']}, RSI: {params['rsi']}")
-            logger.info(f"Reason: {params['reason']}")  # Added reason to logging
-        else:
-            logger.error(f"Error sending signal: {response.status_code}")
-            logger.error(f"Response: {response.text}")
+        # Send POST request with JSON payload
+        response = requests.post(WEBHOOK_URL, json=payload)
+        response.raise_for_status()  # Raise exception for bad status codes
+        
+        logger.info(f"Signal sent successfully: {payload['signal']} for {symbol}")
+        logger.info(f"Current price: {payload['price']}, RSI: {payload['rsi']}")
+        logger.info(f"Reason: {payload['reason']}")
             
     except Exception as e:
         logger.error(f"Error sending to n8n: {str(e)}")
@@ -199,47 +201,38 @@ def main():
     # Verify environment variables
     required_env_vars = ['KRAKEN_API_KEY', 'KRAKEN_API_SECRET', 'WEBHOOK_URL']
     missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+    
     if missing_vars:
         logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
         return
-
+    
+    # Initialize exchange
     exchange = initialize_exchange()
     if not exchange:
+        logger.error("Failed to initialize exchange")
         return
-
-    # Only analyze BTC/USD
-    symbol = "BTC/USD"  # We'll see the correct symbol in the logs
-    timeframe = "1m"  # Changed to 1 minute timeframe
+        
+    symbol = "BTC/USD"
+    logger.info(f"Starting signal generator for {symbol} on 1m timeframe...")
     
-    try:
-        while True:
-            try:
-                logger.info(f"Analyzing {symbol} on {timeframe} timeframe...")
-                
-                # Analyze data
-                analysis = fetch_and_analyze_data(exchange, symbol, timeframe)
-                if analysis:
-                    # Generate signal
-                    signal = generate_signal(analysis)
-                    if signal:
-                        # Send signal to n8n
-                        send_to_n8n(signal, symbol)
-                    else:
-                        logger.info(f"No trading signal generated for {symbol}")
-                        logger.info(f"Current RSI: {analysis['rsi']:.2f}, Price: {analysis['price']}")
-                
-                # Wait 1 minute before next check
-                logger.info(f"Waiting 1 minute for next {symbol} analysis...")
-                time.sleep(60)  # 1 minute
-                
-            except Exception as e:
-                logger.error(f"Error in main loop: {str(e)}")
-                time.sleep(10)  # Wait 10 seconds before retrying if there's an error
+    while True:
+        try:
+            # Fetch and analyze market data
+            analysis = fetch_and_analyze_data(exchange, symbol)
+            if analysis:
+                # Generate trading signal
+                signal = generate_signal(analysis)
+                if signal:
+                    # Send signal to N8N webhook
+                    send_to_n8n(signal, symbol)
             
-    except KeyboardInterrupt:
-        logger.info("Script stopped by user")
-    except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
+            # Wait for next analysis
+            logger.info(f"Waiting 1 minute for next {symbol} analysis...")
+            time.sleep(60)  # Wait for 1 minute
+            
+        except Exception as e:
+            logger.error(f"Error in main loop: {str(e)}")
+            time.sleep(60)  # Wait before retrying
 
 if __name__ == "__main__":
     main()
