@@ -174,8 +174,8 @@ def send_to_n8n(signal_data, symbol):
         if not WEBHOOK_URL:
             raise ValueError("Webhook URL not found in environment variables")
             
-        # Prepare signal data
-        payload = {
+        # Prepare signal data as query parameters
+        params = {
             "symbol": symbol,
             "timeframe": "1m",
             "signal": signal_data['signal'],
@@ -185,13 +185,13 @@ def send_to_n8n(signal_data, symbol):
             "timestamp": datetime.fromtimestamp(signal_data['indicators']['timestamp']/1000).isoformat()
         }
         
-        # Send POST request with JSON payload
-        response = requests.post(WEBHOOK_URL, json=payload)
+        # Send GET request with query parameters
+        response = requests.get(WEBHOOK_URL, params=params)
         response.raise_for_status()  # Raise exception for bad status codes
         
-        logger.info(f"Signal sent successfully: {payload['signal']} for {symbol}")
-        logger.info(f"Current price: {payload['price']}, RSI: {payload['rsi']}")
-        logger.info(f"Reason: {payload['reason']}")
+        logger.info(f"Signal sent successfully: {params['signal']} for {symbol}")
+        logger.info(f"Current price: {params['price']}, RSI: {params['rsi']}")
+        logger.info(f"Reason: {params['reason']}")
             
     except Exception as e:
         logger.error(f"Error sending to n8n: {str(e)}")
